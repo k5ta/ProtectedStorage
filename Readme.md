@@ -36,7 +36,7 @@ To destroy the storage, push the button "Destroy storage".
 #### If an error occurs, the program will report about it and offer some solutions.
 
 
-### Wish you will find the using of this program convenient and useful.
+## Wish you will find the using of this program convenient and useful.
 
 ### 2016, Tarasov Kirill, https://github.com/Tarasow/ProtectedStorage
 
