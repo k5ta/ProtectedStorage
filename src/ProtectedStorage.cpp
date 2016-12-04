@@ -24,9 +24,11 @@ ProtectedStorage::~ProtectedStorage() {
 }
 
 storageCreateStatus ProtectedStorage::createStorage(char** data, int size) {
-
 	if (mIsMounted == true)
 		return storageCreateStatus::alreadyCreated;
+
+	if (data == nullptr)
+		return storageCreateStatus::noArguments;
 
 	if (size < 4)
 		return storageCreateStatus::fewArguments;

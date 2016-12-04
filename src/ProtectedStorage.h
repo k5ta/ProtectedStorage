@@ -5,6 +5,7 @@
 
 enum class storageCreateStatus {
 	alreadyCreated,
+	noArguments,
 	fewArguments,
 	errorInCreating,
 	successfullyCreated

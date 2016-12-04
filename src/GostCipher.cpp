@@ -36,6 +36,9 @@ uint32_t reverse(const uint32_t& val) {
 }
 
 void ecbBlockIteration(const gostcipher::cipherMode& mode, char* text, const uint32_t* key) {
+	if (text == nullptr || key == nullptr)
+		return;
+
 	uint32_t A = 0, B = 0;
 
 	for (size_t j = 0; j < bytesIn32Bits ; ++j)
@@ -98,15 +101,17 @@ void ecbBlockIteration(const gostcipher::cipherMode& mode, char* text, const uin
 }
 
 
-void ecbCipherMain(const gostcipher::cipherMode& mode, char* buf, const size_t& length, const uint32_t* key) {
+void ecbCipherMain(const gostcipher::cipherMode& mode, char* text, const size_t& size, const uint32_t* key) {
+	if (text == nullptr || key == nullptr)
+		return;
 
-	size_t blocks = length / bytesIn64Bits;
+	size_t blocks = size / bytesIn64Bits;
 
-	char* text = buf;
+	char* buf = text;
 
 	for (size_t i = 0; i < blocks; ++i) {
-		ecbBlockIteration(mode, text, key);
-		text+=bytesIn64Bits;
+		ecbBlockIteration(mode, buf, key);
+		buf+=bytesIn64Bits;
 	}
 }
 
@@ -122,6 +127,9 @@ void gostcipher::decrypt(char* text, const size_t& size, const uint32_t* key) {
 
 
 int gostcipher::encryptAndWrite(char* text, const size_t& size, const uint32_t* key, int fileDescriptor, off_t offset) {
+	if (text == nullptr || key == nullptr)
+		return 0;
+
 	size_t extSize = size % bytesIn64Bits, multipleSize = size - extSize;
 	gostcipher::encrypt(text, multipleSize, key);
 	int ret = pwrite(fileDescriptor, text, multipleSize, offset);
@@ -137,6 +145,9 @@ int gostcipher::encryptAndWrite(char* text, const size_t& size, const uint32_t* 
 
 
 int gostcipher::readAndDecrypt(char* text, const size_t& size, const uint32_t* key, int fileDescriptor, off_t offset) {
+	if (text == nullptr || key == nullptr)
+		return 0;
+
 	size_t multipleSize = size - size % bytesIn64Bits;
 	int ret = pread(fileDescriptor, text, multipleSize, offset);
 	gostcipher::decrypt(text, multipleSize, key);
@@ -146,6 +157,9 @@ int gostcipher::readAndDecrypt(char* text, const size_t& size, const uint32_t* k
 
 
 char gostcipher::checkLastBlock(char* text) {
+	if (text == nullptr)
+		return 0;
+
 	char extra = 0;
 	for (char i = 1; i <= static_cast<char>(bytesIn64Bits); ++i) {
 		if (text[bytesIn64Bits - 1] == i) {
