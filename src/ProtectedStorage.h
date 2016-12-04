@@ -13,6 +13,7 @@ enum class storageCreateStatus {
 
 enum class storageDestroyStatus {
 	nothingToDestroy,
+	errorInDestroying,
 	successfullyDestroyed
 };
 
@@ -35,10 +36,12 @@ public:
 
 	storageDestroyStatus destroyStorage();
 
+	bool isMounted() const;
+
 private:
 	std::string mMountdir;
 
-	std::atomic<bool> mIsMounted;
+	bool mIsMounted;
 
 	ProtectedStorage();
 

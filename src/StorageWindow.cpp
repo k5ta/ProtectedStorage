@@ -2,20 +2,20 @@
 #include "ui_StorageWindow.h"
 #include "ErrorDialog.h"
 #include <QFileDialog>
-#include <iostream>
 
 StorageWindow::StorageWindow(const char* path, QWidget* parent) :
 	QMainWindow(parent),
-	ui(new Ui::StorageWindow),
+	ui(std::make_unique<Ui::StorageWindow>()),
 	storage(ProtectedStorage::getInstance()),
 	appPath(path),
-	howToDialog(new HelpDialog),
-	aboutDialog(new HelpDialog)
+	howToDialog(std::make_unique<HelpDialog>()),
+	aboutDialog(std::make_unique<HelpDialog>())
 {
 	ui->setupUi(this);
 	this->setupMenu();
 	this->setupHelp();
 	this->setupConnections();
+	this->setupButtons(true);
 	ui->pushButton_2->setDisabled(true);
 }
 
@@ -53,7 +53,7 @@ void StorageWindow::setupConnections() {
 
 void StorageWindow::setupHelp() {
 	size_t textSize = 5;
-	const char** text = new const char*[textSize];
+	auto text = std::make_unique<const char*[]>(textSize);
 	text[0] = "How to use the program";
 	text[1] = "At first, fill in all the fields:\n"
 			  "Root directory - where you want to store\nyour encrypted data.\n"
@@ -68,7 +68,7 @@ void StorageWindow::setupHelp() {
 	text[4] = "If an error occurs, the program will\n"
 			  "report about it and offer some solutions.";
 
-	howToDialog->setupText(text);
+	howToDialog->setupText(text.get());
 
 	text[0] = "About";
 	text[1] = "Protected storage 0.9 beta\n\n"
@@ -81,23 +81,31 @@ void StorageWindow::setupHelp() {
 			  "program convenient and useful.\n";
 	text[4] = "2016, Tarasov Kirill";
 
-	aboutDialog->setupText(text);
+	aboutDialog->setupText(text.get());
+}
 
-	delete[] text;
+
+void StorageWindow::setupButtons(bool createAvailable) {
+	ui->pushButton->setEnabled(createAvailable);
+	ui->toolButton->setEnabled(createAvailable);
+	ui->toolButton_2->setEnabled(createAvailable);
+	ui->lineEdit->setEnabled(createAvailable);
+	ui->lineEdit_2->setEnabled(createAvailable);
+	ui->lineEdit_3->setEnabled(createAvailable);
+
+	ui->pushButton_2->setEnabled(!createAvailable);
 }
 
 
 StorageWindow::~StorageWindow() {
-	delete storage;
-	delete howToDialog;
-	delete aboutDialog;
-	delete ui;
 }
 
 
 void StorageWindow::closeEvent(QCloseEvent* event) {
 	howToDialog->close();
 	aboutDialog->close();
+	if (storage.get()->isMounted())
+		while(!this->destroyStorage()) {};
 	QMainWindow::closeEvent(event);
 }
 
@@ -120,16 +128,14 @@ bool StorageWindow::createStorage() {
 	}
 
 	int size = 5;
-	char** arr = new char*[size];
+	auto arr = std::make_unique<char*[]>(size);
 	arr[0] = const_cast<char*>(appPath.c_str());
 	arr[1] = const_cast<char*>("-f");
 	arr[2] = const_cast<char*>(root.c_str());
 	arr[3] = const_cast<char*>(mount.c_str());
 	arr[4] = const_cast<char*>(pass.c_str());
 
-	auto a = storage->createStorage(arr, size);
-
-	delete[] arr;
+	auto a = storage->createStorage(arr.get(), size);
 
 	if (a == storageCreateStatus::alreadyCreated) {
 		this->error("Protected storage is already created.\nDestroy it and then create a new.");
@@ -146,8 +152,13 @@ bool StorageWindow::createStorage() {
 
 
 bool StorageWindow::destroyStorage() {
-	if (storage->destroyStorage() == storageDestroyStatus::nothingToDestroy) {
+	auto status = storage->destroyStorage();
+	if (status == storageDestroyStatus::nothingToDestroy) {
 		this->error("There is no storage to destroy.");
+		return false;
+	}
+	if (status == storageDestroyStatus::errorInDestroying) {
+		this->error("Can't destroy storage.\nPlease, close all files in it.");
 		return false;
 	}
 	return true;
@@ -186,28 +197,14 @@ void StorageWindow::mountFileClicked() {
 
 void StorageWindow::createClicked() {
 	if (this->createStorage()) {
-		ui->pushButton->setDisabled(true);
-		ui->toolButton->setDisabled(true);
-		ui->toolButton_2->setDisabled(true);
-		ui->lineEdit->setDisabled(true);
-		ui->lineEdit_2->setDisabled(true);
-		ui->lineEdit_3->setDisabled(true);
-
-		ui->pushButton_2->setEnabled(true);
+		this->setupButtons(false);
 	}
 }
 
 
 void StorageWindow::destroyClicked() {
 	if (this->destroyStorage()) {
-		ui->pushButton_2->setDisabled(true);
-
-		ui->pushButton->setEnabled(true);
-		ui->toolButton->setEnabled(true);
-		ui->toolButton_2->setEnabled(true);
-		ui->lineEdit->setEnabled(true);
-		ui->lineEdit_2->setEnabled(true);
-		ui->lineEdit_3->setEnabled(true);
+		this->setupButtons(true);
 	}
 }
 

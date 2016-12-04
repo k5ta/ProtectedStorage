@@ -3,8 +3,8 @@
 #include "GostHash.h"
 #include <cstdlib>
 #include <thread>
-#include <iostream>
 #include <future>
+#include <memory>
 
 
 ProtectedStorage* ProtectedStorage::pInstance = nullptr;
@@ -21,13 +21,12 @@ ProtectedStorage::ProtectedStorage()
 }
 
 ProtectedStorage::~ProtectedStorage() {
-	if (mIsMounted.load() == true)
-		this->destroyStorage();
+	this->destroyStorage();
 }
 
 storageCreateStatus ProtectedStorage::createStorage(char** data, int size) {
 
-	if (mIsMounted.load() == true)
+	if (mIsMounted == true)
 		return storageCreateStatus::alreadyCreated;
 
 	if (size < 4)
@@ -35,22 +34,18 @@ storageCreateStatus ProtectedStorage::createStorage(char** data, int size) {
 
 	std::string password = data[size - 1];
 
-	uint8_t* key8 = new uint8_t[32],
-			* pass = new uint8_t[password.length()];
+	auto key8 = std::make_unique<uint8_t[]>(32),
+			pass = std::make_unique<uint8_t[]>(password.length());
 	for (size_t i = 0; i < password.length(); ++i)
 		pass[i] = static_cast<uint8_t>(password[i]);
 
-	gosthash::hash256(pass, 8*password.length(), key8);
+	gosthash::hash256(pass.get(), 8*password.length(), key8.get());
 
 	vfsState* vfss = new vfsState;
 	for (int i = 0; i < 8; ++i)
 		for (int j = 0; j < 4; ++j)
 			vfss->key[i] += (static_cast<uint32_t>(key8[i*4 + j])) << (24 - 8*j);
-	delete[] pass;
-	delete[] key8;
 
-	for (int i = 0; i<size; ++i)
-		std::cout << data[i] << std::endl;
 	vfss->rootdir = realpath(data[size - 3], NULL);
 	data[size - 3] = data[size - 2];
 	size -= 2;
@@ -69,17 +64,23 @@ storageCreateStatus ProtectedStorage::createStorage(char** data, int size) {
 		return storageCreateStatus::errorInCreating;
 
 	mMountdir = data[size];
-	mIsMounted.store(true);
+	mIsMounted = true;
 	return storageCreateStatus::successfullyCreated;
 }
 
 storageDestroyStatus ProtectedStorage::destroyStorage() {
-	if (mIsMounted.load() == false)
+	if (mIsMounted == false)
 		return storageDestroyStatus::nothingToDestroy;
 	std::string command = "fusermount -u ";
 	command.append(mMountdir);
-	system(command.c_str());
+	if (system(command.c_str()) != 0) {
+		return storageDestroyStatus::errorInDestroying;
+	}
 	mMountdir = "";
-	mIsMounted.store(false);
+	mIsMounted = false;
 	return storageDestroyStatus::successfullyDestroyed;
+}
+
+bool ProtectedStorage::isMounted() const {
+	return mIsMounted;
 }

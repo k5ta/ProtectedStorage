@@ -10,6 +10,9 @@
 #include <sys/xattr.h>
 #endif
 
+
+const size_t bytesIn64Bits = 8;
+
 static void vfs_fullpath(char fpath[PATH_MAX], const char *path) {
 	strcpy(fpath, vfsData->rootdir);
 	strncat(fpath, path, PATH_MAX);
@@ -124,11 +127,59 @@ int vfs_chown(const char* path, uid_t uid, gid_t gid) {
 	return (ret < 0 ? -errno : ret);
 }
 
+void truncateLess(const off_t& off, const int& fileDescriptor) {
+	auto text = std::make_unique<char[]>(bytesIn64Bits);
+	int rsize = gostcipher::readAndDecrypt(
+				text.get(), bytesIn64Bits, vfsData->key, fileDescriptor, off - off % bytesIn64Bits);
+	gostcipher::encryptAndWrite(text.get(),
+				(rsize < static_cast<int>(off%bytesIn64Bits) ? rsize : off%bytesIn64Bits),
+				vfsData->key, fileDescriptor, off - off % bytesIn64Bits);
+}
+
+void truncateMore(const off_t& off, off_t& oldSize, const int& fileDescriptor) {
+	auto text = std::make_unique<char[]>(bytesIn64Bits);
+	int rsize = gostcipher::readAndDecrypt(text.get(), bytesIn64Bits, vfsData->key,
+				fileDescriptor, oldSize - static_cast<off_t>(bytesIn64Bits));
+	for (size_t i = rsize; i < bytesIn64Bits; ++i)
+		text[i] = 0;
+	gostcipher::encryptAndWrite(text.get(), bytesIn64Bits,vfsData->key,
+				fileDescriptor, oldSize - static_cast<off_t>(bytesIn64Bits));
+
+	for (size_t j = 0; j < bytesIn64Bits; ++j)
+		text[j] = 0;
+	gostcipher::encrypt(text.get(), bytesIn64Bits, vfsData->key);
+
+	off_t nSize = off - off % bytesIn64Bits;
+	while (oldSize < nSize) {
+		pwrite(fileDescriptor, text.get(), bytesIn64Bits, oldSize);
+		oldSize+=bytesIn64Bits;
+	}
+
+	for (size_t j = 0; j < bytesIn64Bits; ++j)
+		text[j] = 0;
+	gostcipher::encryptAndWrite(text.get(), off % bytesIn64Bits, vfsData->key,
+				fileDescriptor, nSize);
+
+}
+
 int vfs_truncate(const char* path, off_t off) {
 	char fpath[PATH_MAX];
 	vfs_fullpath(fpath, path);
-
-	int ret = truncate(fpath, off);
+	int ret = 0;
+	struct stat buf;
+	stat(fpath, &buf);
+	auto oldSize = buf.st_size;
+	int fd = open(fpath, O_RDWR);
+	if (off == oldSize)
+		return 0;
+	if (off < oldSize - static_cast<off_t>(bytesIn64Bits)) {
+		ret = truncate(fpath, off - off%bytesIn64Bits);
+		truncateLess(off, fd);
+	}
+	else {
+		ret = 0;
+		truncateMore(off, oldSize, fd);
+	}
 	return (ret < 0 ? -errno : ret);
 }
 
@@ -151,17 +202,13 @@ int vfs_open(const char* path, struct fuse_file_info* ffinfo) {
 }
 
 int vfs_read(const char* path, char* buf, size_t size, off_t off, struct fuse_file_info* ffinfo) {
-	int ret = pread(ffinfo->fh, buf, size, off);
-	gostcipher::decrypt(buf, size, vfsData->key);
+	int ret = gostcipher::readAndDecrypt(buf, size, vfsData->key, ffinfo->fh, off);
 	return (ret < 0 ? -errno : ret);
 }
 
+
 int vfs_write(const char* path, const char* buf, size_t size, off_t off, struct fuse_file_info* ffinfo) {
-	size_t extSize = 0;
-	char* extText = gostcipher::extendText(buf, size, extSize);
-	gostcipher::encrypt(extText, extSize, vfsData->key);
-	int ret = pwrite(ffinfo->fh, extText, extSize, off);
-	delete[] extText;
+	int ret = gostcipher::encryptAndWrite(const_cast<char*>(buf), size, vfsData->key, ffinfo->fh, off);
 	return (ret < 0 ? -errno : size);
 }
 
@@ -280,8 +327,7 @@ int vfs_access(const char* path, int mask) {
 }
 
 int vfs_ftruncate(const char* path, off_t off, struct fuse_file_info* ffinfo) {
-	int ret = ftruncate(ffinfo->fh, off);
-	return (ret < 0 ? -errno : ret);
+	return vfs_truncate(path, off);
 }
 
 int vfs_fgetattr(const char* path, struct stat* stats, struct fuse_file_info* ffinfo) {

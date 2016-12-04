@@ -1,9 +1,10 @@
 #ifndef STORAGEWINDOW_H
 #define STORAGEWINDOW_H
 
-#include <QMainWindow>
 #include "ProtectedStorage.h"
 #include "HelpDialog.h"
+#include <QMainWindow>
+#include <memory>
 
 namespace Ui {
 	class StorageWindow;
@@ -40,19 +41,23 @@ private slots:
 
 
 private:
-	Ui::StorageWindow *ui;
+	std::unique_ptr<Ui::StorageWindow> ui;
 
-	ProtectedStorage* storage = nullptr;
+	std::unique_ptr<ProtectedStorage> storage = nullptr;
 
 	std::string appPath;
 
-	HelpDialog * howToDialog, *aboutDialog;
+	std::unique_ptr<HelpDialog> howToDialog, aboutDialog;
 
 	void setupMenu();
 
 	void setupConnections();
 
 	void setupHelp();
+
+	void setupButtons(bool createAvailable);
+
+	bool checkField();
 
 	bool createStorage();
 
