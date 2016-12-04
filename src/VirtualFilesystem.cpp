@@ -9,7 +9,7 @@
 #ifdef HAVE_SYS_XATTR_H
 #include <sys/xattr.h>
 #endif
-
+#include <memory>
 
 const size_t bytesIn64Bits = 8;
 
@@ -286,7 +286,8 @@ int vfs_opendir(const char* path, struct fuse_file_info* ffinfo) {
 	return (dir ? 0 : -errno);
 }
 
-int vfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t off, struct fuse_file_info* ffinfo) {
+int vfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t off,
+				struct fuse_file_info* ffinfo) {
 	DIR* dir = (DIR *) (uintptr_t) ffinfo->fh;
 	struct dirent* dnt = readdir(dir);
 

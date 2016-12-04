@@ -2,7 +2,6 @@
 #define PROTECTED_STORAGE_H
 
 #include <string>
-#include <atomic>
 
 enum class storageCreateStatus {
 	alreadyCreated,

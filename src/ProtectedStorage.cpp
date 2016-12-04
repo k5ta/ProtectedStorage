@@ -4,7 +4,6 @@
 #include <cstdlib>
 #include <thread>
 #include <future>
-#include <memory>
 
 
 ProtectedStorage* ProtectedStorage::pInstance = nullptr;
