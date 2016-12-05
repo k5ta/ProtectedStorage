@@ -127,37 +127,44 @@ int vfs_chown(const char* path, uid_t uid, gid_t gid) {
 	return (ret < 0 ? -errno : ret);
 }
 
-void truncateLess(const off_t& off, const int& fileDescriptor) {
-	auto text = std::make_unique<char[]>(bytesIn64Bits);
-	int rsize = gostcipher::readAndDecrypt(
-				text.get(), bytesIn64Bits, vfsData->key, fileDescriptor, off - off % bytesIn64Bits);
-	gostcipher::encryptAndWrite(text.get(),
-				(rsize < static_cast<int>(off%bytesIn64Bits) ? rsize : off%bytesIn64Bits),
-				vfsData->key, fileDescriptor, off - off % bytesIn64Bits);
+void truncateLess(const off_t& off, const off_t& oldSize, const int& fileDescriptor, char* text, int rsize) {
+	if (off < oldSize - static_cast<off_t>(bytesIn64Bits))
+		gostcipher::encryptAndWrite(text, off%bytesIn64Bits,
+					vfsData->key, fileDescriptor, off - off % bytesIn64Bits);
+	else
+		gostcipher::encryptAndWrite(text,
+					(rsize < static_cast<int>(off % bytesIn64Bits) ? rsize : off % bytesIn64Bits),
+					vfsData->key, fileDescriptor, off - off % bytesIn64Bits);
 }
 
-void truncateMore(const off_t& off, off_t& oldSize, const int& fileDescriptor) {
-	auto text = std::make_unique<char[]>(bytesIn64Bits);
-	int rsize = gostcipher::readAndDecrypt(text.get(), bytesIn64Bits, vfsData->key,
-				fileDescriptor, oldSize - static_cast<off_t>(bytesIn64Bits));
+void truncateMore(const off_t& off, off_t& oldSize, const int& fileDescriptor, char* text, int rsize) {
 	for (size_t i = rsize; i < bytesIn64Bits; ++i)
 		text[i] = 0;
-	gostcipher::encryptAndWrite(text.get(), bytesIn64Bits,vfsData->key,
+	if (off < oldSize) {
+		gostcipher::encryptAndWrite(text, off % bytesIn64Bits, vfsData->key,
+					fileDescriptor, oldSize - static_cast<off_t>(bytesIn64Bits));
+		return;
+	}
+	gostcipher::encryptAndWrite(text, bytesIn64Bits, vfsData->key,
 				fileDescriptor, oldSize - static_cast<off_t>(bytesIn64Bits));
 
-	for (size_t j = 0; j < bytesIn64Bits; ++j)
-		text[j] = 0;
-	gostcipher::encrypt(text.get(), bytesIn64Bits, vfsData->key);
 
 	off_t nSize = off - off % bytesIn64Bits;
+
+	if (oldSize < nSize) {
+		for (size_t j = 0; j < bytesIn64Bits; ++j)
+			text[j] = 0;
+		gostcipher::encrypt(text, bytesIn64Bits, vfsData->key);
+	}
+
 	while (oldSize < nSize) {
-		pwrite(fileDescriptor, text.get(), bytesIn64Bits, oldSize);
+		pwrite(fileDescriptor, text, bytesIn64Bits, oldSize);
 		oldSize+=bytesIn64Bits;
 	}
 
 	for (size_t j = 0; j < bytesIn64Bits; ++j)
 		text[j] = 0;
-	gostcipher::encryptAndWrite(text.get(), off % bytesIn64Bits, vfsData->key,
+	gostcipher::encryptAndWrite(text, off % bytesIn64Bits, vfsData->key,
 				fileDescriptor, nSize);
 
 }
@@ -170,15 +177,20 @@ int vfs_truncate(const char* path, off_t off) {
 	stat(fpath, &buf);
 	auto oldSize = buf.st_size;
 	int fd = open(fpath, O_RDWR);
-	if (off == oldSize)
+	auto text = std::make_unique<char[]>(bytesIn64Bits);
+	int rsize = gostcipher::readAndDecrypt(text.get(), bytesIn64Bits, vfsData->key,
+										   fd, oldSize - static_cast<off_t>(bytesIn64Bits));
+	if (off == oldSize - static_cast<off_t>(bytesIn64Bits) + rsize)
 		return 0;
-	if (off < oldSize - static_cast<off_t>(bytesIn64Bits)) {
+	if (off < oldSize - static_cast<off_t>(bytesIn64Bits) + rsize) {
+		int rsize = gostcipher::readAndDecrypt(text.get(), bytesIn64Bits, vfsData->key,
+					fd, off - off % bytesIn64Bits);
 		ret = truncate(fpath, off - off%bytesIn64Bits);
-		truncateLess(off, fd);
+		truncateLess(off, oldSize, fd, text.get(), rsize);
 	}
 	else {
 		ret = 0;
-		truncateMore(off, oldSize, fd);
+		truncateMore(off, oldSize, fd, text.get(), rsize);
 	}
 	return (ret < 0 ? -errno : ret);
 }
