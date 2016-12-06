@@ -1,7 +1,6 @@
 #include "GostHash.h"
-#include <cstdio>
-#include <cstdlib>
 #include <cstring>
+#include <memory>
 
 
 const uint64_t aTable[64] {
@@ -300,3 +299,21 @@ void gosthash::hash256(const uint8_t* message, const uint64_t& length, uint8_t* 
 
 	memcpy(out, hash, 32);
 }
+
+const size_t bytesIn64Bits = 8, hash256by4ByteBlocks = 8, u32inBytes = 4;
+
+void gosthash::hashFromStr(const std::string& str, uint8_t* out) {
+	auto str8 = std::make_unique<uint8_t[]>(str.length());
+	for (size_t i = 0; i < str.length(); ++i)
+		str8[i] = static_cast<uint8_t>(str[i]);
+	gosthash::hash256(str8.get(), bytesIn64Bits * str.length(), out);
+}
+
+void gosthash::hashFromStrToU32(const std::string& str, uint32_t* out) {
+	auto hash8 = std::make_unique<uint8_t[]>(hash256by4ByteBlocks*u32inBytes);
+	gosthash::hashFromStr(str, hash8.get());
+	for (size_t i = 0; i < hash256by4ByteBlocks; ++i)
+		for (size_t j = 0; j < u32inBytes; ++j)
+			out[i] += (static_cast<uint32_t>(hash8[i*u32inBytes + j])) << (24 - 8*j);
+}
+

@@ -22,4 +22,4 @@ private:
 	Ui::HelpDialog *ui;
 };
 
-#endif // HELPDIALOG_H
+#endif

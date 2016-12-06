@@ -21,4 +21,4 @@ private:
 	Ui::ErrorDialog *ui;
 };
 
-#endif // ERRORDIALOG_H
+#endif

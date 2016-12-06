@@ -1,7 +1,6 @@
 #include "ProtectedStorage.h"
 #include "VirtualFilesystem.h"
 #include "GostHash.h"
-#include <cstdlib>
 #include <thread>
 #include <future>
 
@@ -35,17 +34,8 @@ storageCreateStatus ProtectedStorage::createStorage(char** data, int size) {
 
 	std::string password = data[size - 1];
 
-	auto key8 = std::make_unique<uint8_t[]>(32),
-			pass = std::make_unique<uint8_t[]>(password.length());
-	for (size_t i = 0; i < password.length(); ++i)
-		pass[i] = static_cast<uint8_t>(password[i]);
-
-	gosthash::hash256(pass.get(), 8*password.length(), key8.get());
-
 	vfsState* vfss = new vfsState;
-	for (int i = 0; i < 8; ++i)
-		for (int j = 0; j < 4; ++j)
-			vfss->key[i] += (static_cast<uint32_t>(key8[i*4 + j])) << (24 - 8*j);
+	gosthash::hashFromStrToU32(password, vfss->key);
 
 	vfss->rootdir = realpath(data[size - 3], NULL);
 	data[size - 3] = data[size - 2];

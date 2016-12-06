@@ -1,8 +1,8 @@
 #ifndef PS_GOST28147_H
 #define PS_GOST28147_H
 
-#include <stdio.h>
-#include <stdint.h>
+#include <cstdio>
+#include <cstdint>
 
 namespace gostcipher {
 

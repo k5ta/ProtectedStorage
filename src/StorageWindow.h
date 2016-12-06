@@ -64,4 +64,4 @@ private:
 	bool destroyStorage();
 };
 
-#endif // STORAGEWINDOW_H
+#endif
