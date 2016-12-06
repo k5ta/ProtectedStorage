@@ -23,7 +23,7 @@ Protected storage 0.93 RC
 
 * Mount directory - папка, в которой вы хотите работать с ними.
 
-* Password - необходим для шифрования и дешифрования данных.
+* Password - необходим для шифрования и дешифрования данных. Длина должна быть от 4 до 64 символов.
 
 Далее, нажмите на кнопку "Create storage" для создания хранилища.
 
@@ -65,7 +65,7 @@ At first, fill in all the fields:
 
 * Mount directory - where you want to work with it.
 
-* Password - need to encrypt and decrypt.
+* Password - need to encrypt and decrypt. It's length should be from 4 to 64 characters.
 
 Then, push the button "Create storage" to create it.
 

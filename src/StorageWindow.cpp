@@ -126,6 +126,10 @@ bool StorageWindow::createStorage() {
 		this->error("Password field is empty.\nPlease, fill in all the fields.");
 		return false;
 	}
+	if (pass.length() < 4 || pass.length() > 64) {
+		this->error("Wrong password length.\nIt should be from 4 to 64 characters.");
+		return false;
+	}
 
 	int size = 5;
 	auto arr = std::make_unique<char*[]>(size);
