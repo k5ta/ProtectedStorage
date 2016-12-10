@@ -10,6 +10,7 @@
 #endif
 #include <memory>
 
+
 const size_t bytesIn64Bits = 8;
 
 static void vfs_fullpath(char fpath[PATH_MAX], const char *path) {
@@ -17,11 +18,21 @@ static void vfs_fullpath(char fpath[PATH_MAX], const char *path) {
 	strncat(fpath, path, PATH_MAX);
 }
 
+int getLastBlockSize(char* fpath, off_t ssize) {
+	int fd = open(fpath, O_RDONLY);
+	auto text = std::make_unique<char[]>(bytesIn64Bits);
+	int readBytes = gostcipher::readAndDecrypt(
+				text.get(), bytesIn64Bits, vfsData->key, fd, ssize - bytesIn64Bits);
+	close(fd);
+	return readBytes;
+}
+
 int vfs_getattr(const char* path, struct stat* stats) {
 	char fpath[PATH_MAX];
 	vfs_fullpath(fpath, path);
 
 	int	ret = lstat(fpath, stats);
+	stats->st_size -= (bytesIn64Bits - getLastBlockSize(fpath, stats->st_size));
 	return (ret < 0 ? -errno : ret);
 }
 
@@ -169,7 +180,7 @@ int vfs_truncate(const char* path, off_t off) {
 	int rsize = gostcipher::readAndDecrypt(text.get(), bytesIn64Bits, vfsData->key,
 										   fd, oldSize - static_cast<off_t>(bytesIn64Bits));
 	if (off == oldSize - static_cast<off_t>(bytesIn64Bits) + rsize)
-		return 0;
+		ret = 0;
 	if (off < oldSize - static_cast<off_t>(bytesIn64Bits) + rsize) {
 		gostcipher::readAndDecrypt(text.get(), bytesIn64Bits, vfsData->key,
 					fd, off - off % bytesIn64Bits);
@@ -181,6 +192,7 @@ int vfs_truncate(const char* path, off_t off) {
 		ret = 0;
 		truncateMore(off, oldSize, fd, text.get(), rsize);
 	}
+	close(fd);
 	return (ret < 0 ? -errno : ret);
 }
 
@@ -337,6 +349,10 @@ int vfs_fgetattr(const char* path, struct stat* stats, struct fuse_file_info* ff
 		return vfs_getattr(path, stats);
 
 	int ret = fstat(ffinfo->fh, stats);
+	char fpath[PATH_MAX];
+	vfs_fullpath(fpath, path);
+	stats->st_size -= (bytesIn64Bits - getLastBlockSize(fpath, stats->st_size));
+
 	return (ret < 0 ? -errno : ret);
 }
 

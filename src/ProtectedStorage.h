@@ -3,6 +3,11 @@
 
 #include <string>
 
+struct storageDataArray {
+	char** arr;
+	int size;
+};
+
 enum class storageCreateStatus {
 	alreadyCreated,
 	noArguments,
@@ -32,7 +37,7 @@ public:
 
 	ProtectedStorage& operator=(ProtectedStorage&& ) = delete;
 
-	storageCreateStatus createStorage(char** data, int size);
+	storageCreateStatus createStorage(storageDataArray& data);
 
 	storageDestroyStatus destroyStorage();
 

@@ -15,19 +15,13 @@ SOURCES += src/main.cpp             \
     src/VirtualFilesystem.cpp   \
     src/GostCipher.cpp          \
     src/GostHash.cpp            \
-    src/ProtectedStorage.cpp    \
-    src/ErrorDialog.cpp         \
-    src/HelpDialog.cpp
+    src/ProtectedStorage.cpp
 
 HEADERS  += src/StorageWindow.h     \
     src/VirtualFilesystem.h \
     src/GostCipher.h        \
     src/GostHash.h          \
-    src/ProtectedStorage.h  \
-    src/ErrorDialog.h       \
-    src/HelpDialog.h
+    src/ProtectedStorage.h
 
-FORMS    += src/StorageWindow.ui \
-    src/ErrorDialog.ui \
-    src/HelpDialog.ui
+FORMS    += src/StorageWindow.ui
 

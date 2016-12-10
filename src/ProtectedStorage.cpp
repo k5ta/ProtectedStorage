@@ -22,27 +22,26 @@ ProtectedStorage::~ProtectedStorage() {
 	this->destroyStorage();
 }
 
-storageCreateStatus ProtectedStorage::createStorage(char** data, int size) {
+storageCreateStatus ProtectedStorage::createStorage(storageDataArray& data) {
 	if (mIsMounted == true)
 		return storageCreateStatus::alreadyCreated;
 
-	if (data == nullptr)
-		return storageCreateStatus::noArguments;
-
-	if (size < 4)
+	if (data.arr == nullptr || data.size < 4)
 		return storageCreateStatus::fewArguments;
 
-	std::string password = data[size - 1];
+	std::string password = data.arr[data.size - 1];
 
 	vfsState* vfss = new vfsState;
 	gosthash::hashFromStrToU32(password, vfss->key);
 
-	vfss->rootdir = realpath(data[size - 3], NULL);
-	data[size - 3] = data[size - 2];
-	size -= 2;
+	vfss->rootdir = realpath(data.arr[data.size - 3], NULL);
+	data.arr[data.size - 3] = data.arr[data.size - 2];
 
-	std::packaged_task<int()>
-			task([=] {return fuse_main_real(size, data, &vfsOper, sizeof(vfsOper), vfss); });
+	auto aa = std::make_unique<char*[]>(5);
+	aa.get();
+
+	std::packaged_task<int()> task([=]
+		{return fuse_main_real(data.size - 2, data.arr, &vfsOper, sizeof(vfsOper), vfss); });
 	auto fut = task.get_future();
 
 	std::thread fuseThread(std::move(task));
@@ -54,7 +53,7 @@ storageCreateStatus ProtectedStorage::createStorage(char** data, int size) {
 	if (status == std::future_status::ready)
 		return storageCreateStatus::errorInCreating;
 
-	mMountdir = data[size];
+	mMountdir = data.arr[data.size - 2];
 	mIsMounted = true;
 	return storageCreateStatus::successfullyCreated;
 }

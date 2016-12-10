@@ -3,18 +3,17 @@
 #include "ErrorDialog.h"
 #include <QFileDialog>
 
+
 StorageWindow::StorageWindow(const char* path, QWidget* parent) :
 	QMainWindow(parent),
 	ui(std::make_unique<Ui::StorageWindow>()),
 	storage(ProtectedStorage::getInstance()),
-	appPath(path),
-	howToDialog(std::make_unique<HelpDialog>()),
-	aboutDialog(std::make_unique<HelpDialog>())
+	appPath(path)
 {
 	ui->setupUi(this);
 	this->setupMenu();
-	this->setupHelp();
 	this->setupConnections();
+	this->setupBoxes();
 	this->setupButtons(true);
 	ui->pushButton_2->setDisabled(true);
 }
@@ -51,37 +50,27 @@ void StorageWindow::setupConnections() {
 }
 
 
-void StorageWindow::setupHelp() {
-	size_t textSize = 5;
-	auto text = std::make_unique<const char*[]>(textSize);
-	text[0] = "How to use the program";
-	text[1] = "At first, fill in all the fields:\n"
-			  "Root directory - where you want to store\nyour encrypted data.\n"
-			  "Mount - where you want to work with it.";
-	text[2] = "Password - need to encrypt and decrypt.\n"
-			  "Then, push the button \"Create storage\"\n"
-			  "to create it.\n"
-			  "To destroy the storage, push the button";
-	text[3] = "\"Destroy storage\".\n\n"
-			  "Remember: you can't create more than one\n"
-			  "storage at the same time.";
-	text[4] = "If an error occurs, the program will\n"
-			  "report about it and offer some solutions.";
+void StorageWindow::setupBoxes() {
+	this->howToBox.setWindowTitle("How to use");
+	this->howToBox.setText("At first, fill in all the fields:\n"
+			"* Root directory - where you want to store\nyour encrypted data.\n"
+			"* Mount directory - where you want to work with it.\n"
+			"* Password - need to encrypt and decrypt data. "
+			"It's length should be at least 8 characters.\n"
+			"Then, push the button \"Create storage\" to create it.\n\n"
+			"To destroy the storage, push the button \"Destroy storage\".\n\n"
+			"Remember: you can't create more than one storage at the same time.\n"
+			"If an error occurs, the program will report about it and offer some solutions.");
+	this->howToBox.setModal(false);
 
-	howToDialog->setupText(text.get());
-
-	text[0] = "About";
-	text[1] = "Protected storage 0.9 beta\n\n"
-			  "Created on C++ using FUSE library and Qt\n";
-	text[2] = "Provides the functionality of creating\n"
-			  "and using protected storage with any data.\n"
-			  "The mounted directory is similar to an\n"
-			  "regular logical disk.";
-	text[3] = "\nWish you will find the using of this\n"
-			  "program convenient and useful.\n";
-	text[4] = "2016, Tarasov Kirill";
-
-	aboutDialog->setupText(text.get());
+	this->aboutBox.setWindowTitle("About");
+	this->aboutBox.setText("Protected storage 0.97 RC\n\n"
+			"Created on C++ using FUSE library and Qt\n"
+			"Provides the functionality of creating and using protected storage with any data.\n"
+			"The mounted directory is similar to an regular logical disk.\n"
+			"\nWish you will find the using of this\n"
+			"program convenient and useful.\n\n2016, Tarasov Kirill");
+	this->aboutBox.setModal(false);
 }
 
 
@@ -102,8 +91,8 @@ StorageWindow::~StorageWindow() {
 
 
 void StorageWindow::closeEvent(QCloseEvent* event) {
-	howToDialog->close();
-	aboutDialog->close();
+	this->howToBox.close();
+	this->aboutBox.close();
 	if (storage.get()->isMounted())
 		while(!this->destroyStorage()) {};
 	QMainWindow::closeEvent(event);
@@ -126,20 +115,22 @@ bool StorageWindow::createStorage() {
 		this->error("Password field is empty.\nPlease, fill in all the fields.");
 		return false;
 	}
-	if (pass.length() < 4 || pass.length() > 64) {
-		this->error("Wrong password length.\nIt should be from 4 to 64 characters.");
+	if (pass.length() < 8) {
+		this->error("Wrong password length.\nIt should be at least 8 characters.");
 		return false;
 	}
 
-	int size = 5;
-	auto arr = std::make_unique<char*[]>(size);
-	arr[0] = const_cast<char*>(appPath.c_str());
-	arr[1] = const_cast<char*>("-f");
-	arr[2] = const_cast<char*>(root.c_str());
-	arr[3] = const_cast<char*>(mount.c_str());
-	arr[4] = const_cast<char*>(pass.c_str());
+	storageDataArray data;
+	data.size = 5;
+	auto arrPtr = std::make_unique<char*[]>(data.size);
+	arrPtr[0] = const_cast<char*>(appPath.c_str());
+	arrPtr[1] = const_cast<char*>("-f");
+	arrPtr[2] = const_cast<char*>(root.c_str());
+	arrPtr[3] = const_cast<char*>(mount.c_str());
+	arrPtr[4] = const_cast<char*>(pass.c_str());
+	data.arr = arrPtr.get();
 
-	auto a = storage->createStorage(arr.get(), size);
+	auto a = storage->createStorage(data);
 
 	if (a == storageCreateStatus::alreadyCreated) {
 		this->error("Protected storage is already created.\nDestroy it and then create a new.");
@@ -170,32 +161,39 @@ bool StorageWindow::destroyStorage() {
 
 
 void StorageWindow::howToUse() {
-	howToDialog->show();
+	howToBox.show();
 }
 
 
 void StorageWindow::about() {
-	aboutDialog->show();
+	aboutBox.show();
 }
 
 
 void StorageWindow::error(const char* reason) {
-	ErrorDialog e(reason);
-	e.exec();
+	QMessageBox mb;
+	mb.setWindowTitle("ERROR");
+	mb.setText(reason);
+	mb.setModal(true);
+	mb.exec();
 }
-
+#include <iostream>
 
 void StorageWindow::rootFileClicked() {
 	QFileDialog qfd;
-	qfd.exec();
-	ui->lineEdit->setText(qfd.directory().absolutePath());
+	qfd.setFileMode(QFileDialog::FileMode::DirectoryOnly);
+	auto dir = qfd.getExistingDirectory();
+	if (dir.length())
+		ui->lineEdit->setText(dir);
 }
 
 
 void StorageWindow::mountFileClicked() {
 	QFileDialog qfd;
-	qfd.exec();
-	ui->lineEdit_2->setText(qfd.directory().path());
+	qfd.setFileMode(QFileDialog::FileMode::DirectoryOnly);
+	auto dir = qfd.getExistingDirectory();
+	if (dir.length())
+		ui->lineEdit_2->setText(dir);
 }
 
 

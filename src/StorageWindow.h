@@ -2,8 +2,8 @@
 #define STORAGEWINDOW_H
 
 #include "ProtectedStorage.h"
-#include "HelpDialog.h"
 #include <QMainWindow>
+#include <QMessageBox>
 #include <memory>
 
 namespace Ui {
@@ -47,13 +47,15 @@ private:
 
 	std::string appPath;
 
-	std::unique_ptr<HelpDialog> howToDialog, aboutDialog;
+	QMessageBox howToBox, aboutBox;
 
 	void setupMenu();
 
 	void setupConnections();
 
 	void setupHelp();
+
+	void setupBoxes();
 
 	void setupButtons(bool createAvailable);
 

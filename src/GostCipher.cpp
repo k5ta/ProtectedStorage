@@ -1,5 +1,6 @@
 #include "GostCipher.h"
 #include <unistd.h>
+#include <sys/stat.h>
 #include <memory>
 
 const size_t bytesIn64Bits = 8;
@@ -102,7 +103,7 @@ void ecbBlockIteration(const gostcipher::cipherMode& mode, char* text, const uin
 
 
 void ecbCipherMain(const gostcipher::cipherMode& mode, char* text, const size_t& size, const uint32_t* key) {
-	if (text == nullptr || key == nullptr)
+	if (text == nullptr || key == nullptr || size == 0)
 		return;
 
 	size_t blocks = size / bytesIn64Bits;
@@ -125,38 +126,56 @@ void gostcipher::decrypt(char* text, const size_t& size, const uint32_t* key) {
 	ecbCipherMain(cipherMode::decryptMode, text, size, key);
 }
 
-
 int gostcipher::encryptAndWrite(char* text, const size_t& size, const uint32_t* key, int fileDescriptor, off_t offset) {
-	if (text == nullptr || key == nullptr)
+	if (text == nullptr || key == nullptr || size == 0)
 		return 0;
 
-	size_t extSize = size % bytesIn64Bits, multipleSize = size - extSize;
-	gostcipher::encrypt(text, multipleSize, key);
-	int ret = pwrite(fileDescriptor, text, multipleSize, offset);
+	int ret = 0;
+	auto extOff = offset % bytesIn64Bits;
+	auto nOff = offset;
 	auto extBuf = std::make_unique<char[]>(bytesIn64Bits);
+	if (extOff) {
+		nOff += (bytesIn64Bits - extOff);
+		gostcipher::readAndDecrypt(
+					extBuf.get(), bytesIn64Bits, key, fileDescriptor, offset - extOff);
+		for (size_t i = extOff; i < (extOff + size < bytesIn64Bits ? extOff + size : bytesIn64Bits); ++i)
+			extBuf[i] = text[i - extOff];
+
+		gostcipher::encrypt(extBuf.get(), bytesIn64Bits, key);
+		ret = pwrite(fileDescriptor, extBuf.get(), bytesIn64Bits, offset - extOff);
+	}
+
+	size_t extSize = (size - (extOff ? bytesIn64Bits - extOff : 0)) % bytesIn64Bits;
+	size_t multipleSize = size - (extOff ? bytesIn64Bits - extOff : 0) - extSize;
+	if (multipleSize > size)
+		return ret;
+
+	gostcipher::encrypt(text, multipleSize, key);
+	ret = pwrite(fileDescriptor, text, multipleSize, nOff);
+
+	struct stat stats;
+	int	r = fstat(fileDescriptor, &stats);
+	if (static_cast<size_t>(stats.st_size) > multipleSize + nOff + bytesIn64Bits) {
+		gostcipher::readAndDecrypt(
+					extBuf.get(), bytesIn64Bits, key, fileDescriptor, nOff + multipleSize);
+		for (size_t i = 0; i < extSize; ++i)
+			extBuf[i] = text[size - extSize + i];
+
+		gostcipher::encrypt(extBuf.get(), bytesIn64Bits, key);
+		ret = pwrite(fileDescriptor, extBuf.get(), bytesIn64Bits, nOff + multipleSize);
+		return ret;
+	}
+
 	for (size_t i = 0; i < extSize; ++i)
 		extBuf[i] = text[multipleSize + i];
 	for (size_t i = extSize; i < bytesIn64Bits; ++i)
 		extBuf[i] = static_cast<char>(bytesIn64Bits - extSize);
 	ecbBlockIteration(cipherMode::encryptMode, extBuf.get(), key);
-	ret = pwrite(fileDescriptor, extBuf.get(), bytesIn64Bits, offset + multipleSize);
+	ret = pwrite(fileDescriptor, extBuf.get(), bytesIn64Bits, nOff + multipleSize);
 	return ret;
 }
 
-
-int gostcipher::readAndDecrypt(char* text, const size_t& size, const uint32_t* key, int fileDescriptor, off_t offset) {
-	if (text == nullptr || key == nullptr)
-		return 0;
-
-	size_t multipleSize = size - size % bytesIn64Bits;
-	int ret = pread(fileDescriptor, text, multipleSize, offset);
-	gostcipher::decrypt(text, multipleSize, key);
-	ret -= checkLastBlock(text + ret - (ret % bytesIn64Bits ? ret % bytesIn64Bits : bytesIn64Bits));
-	return ret;
-}
-
-
-char gostcipher::checkLastBlock(char* text) {
+char checkLastBlock(char* text) {
 	if (text == nullptr)
 		return 0;
 
@@ -177,4 +196,15 @@ char gostcipher::checkLastBlock(char* text) {
 			}
 
 	return (last ? extra : 0);
+}
+
+int gostcipher::readAndDecrypt(char* text, const size_t& size, const uint32_t* key, int fileDescriptor, off_t offset) {
+	if (text == nullptr || key == nullptr || size == 0)
+		return 0;
+
+	size_t multipleSize = size - size % bytesIn64Bits;
+	int ret = pread(fileDescriptor, text, multipleSize, offset - offset % bytesIn64Bits);
+	gostcipher::decrypt(text, multipleSize, key);
+	ret -= checkLastBlock(text + ret - (ret % bytesIn64Bits ? ret % bytesIn64Bits : bytesIn64Bits));
+	return ret;
 }
