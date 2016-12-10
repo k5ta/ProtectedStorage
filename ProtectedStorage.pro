@@ -15,13 +15,15 @@ SOURCES += src/main.cpp             \
     src/VirtualFilesystem.cpp   \
     src/GostCipher.cpp          \
     src/GostHash.cpp            \
-    src/ProtectedStorage.cpp
+    src/ProtectedStorage.cpp \
+    src/CipherHelper.cpp
 
 HEADERS  += src/StorageWindow.h     \
     src/VirtualFilesystem.h \
     src/GostCipher.h        \
     src/GostHash.h          \
-    src/ProtectedStorage.h
+    src/ProtectedStorage.h \
+    src/CipherHelper.h
 
 FORMS    += src/StorageWindow.ui
 

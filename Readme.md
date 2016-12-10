@@ -33,6 +33,10 @@ Protected storage 0.97 RC
 
 #### В случае ошибки программа сообщит об этом и предложит пути решения.
 
+## 0.97 bug: 
+при использовании текстового редактора Kate могут возникать проблемы при сохранении. Используйте другие текстовые редакторы.
+
+
 
 ## Надеюсь, использование данной программы будет для вас удобным и полезным.
 
@@ -75,6 +79,8 @@ To destroy the storage, push the button "Destroy storage".
 
 #### If an error occurs, the program will report about it and offer some solutions.
 
+## 0.97 bug:
+If you use Kate text editor, you can get some problems while saving the files. Use another text editor.
 
 ## Wish you will find the using of this program convenient and useful.
 

@@ -1,7 +1,5 @@
 #include "GostCipher.h"
-#include <unistd.h>
-#include <sys/stat.h>
-#include <memory>
+
 
 const size_t bytesIn64Bits = 8;
 const size_t bytesIn32Bits = 4;
@@ -36,7 +34,7 @@ uint32_t reverse(const uint32_t& val) {
 	return revv;
 }
 
-void ecbBlockIteration(const gostcipher::cipherMode& mode, char* text, const uint32_t* key) {
+void gostcipher::ecbBlockIteration(const gostcipher::cipherMode& mode, char* text, const uint32_t* key) {
 	if (text == nullptr || key == nullptr)
 		return;
 
@@ -102,7 +100,7 @@ void ecbBlockIteration(const gostcipher::cipherMode& mode, char* text, const uin
 }
 
 
-void ecbCipherMain(const gostcipher::cipherMode& mode, char* text, const size_t& size, const uint32_t* key) {
+void gostcipher::ecbCipherMain(const gostcipher::cipherMode& mode, char* text, const size_t& size, const uint32_t* key) {
 	if (text == nullptr || key == nullptr || size == 0)
 		return;
 
@@ -124,87 +122,4 @@ void gostcipher::encrypt(char* text, const size_t& size, const uint32_t* key) {
 
 void gostcipher::decrypt(char* text, const size_t& size, const uint32_t* key) {
 	ecbCipherMain(cipherMode::decryptMode, text, size, key);
-}
-
-int gostcipher::encryptAndWrite(char* text, const size_t& size, const uint32_t* key, int fileDescriptor, off_t offset) {
-	if (text == nullptr || key == nullptr || size == 0)
-		return 0;
-
-	int ret = 0;
-	auto extOff = offset % bytesIn64Bits;
-	auto nOff = offset;
-	auto extBuf = std::make_unique<char[]>(bytesIn64Bits);
-	if (extOff) {
-		nOff += (bytesIn64Bits - extOff);
-		gostcipher::readAndDecrypt(
-					extBuf.get(), bytesIn64Bits, key, fileDescriptor, offset - extOff);
-		for (size_t i = extOff; i < (extOff + size < bytesIn64Bits ? extOff + size : bytesIn64Bits); ++i)
-			extBuf[i] = text[i - extOff];
-
-		gostcipher::encrypt(extBuf.get(), bytesIn64Bits, key);
-		ret = pwrite(fileDescriptor, extBuf.get(), bytesIn64Bits, offset - extOff);
-	}
-
-	size_t extSize = (size - (extOff ? bytesIn64Bits - extOff : 0)) % bytesIn64Bits;
-	size_t multipleSize = size - (extOff ? bytesIn64Bits - extOff : 0) - extSize;
-	if (multipleSize > size)
-		return ret;
-
-	gostcipher::encrypt(text, multipleSize, key);
-	ret = pwrite(fileDescriptor, text, multipleSize, nOff);
-
-	struct stat stats;
-	int	r = fstat(fileDescriptor, &stats);
-	if (static_cast<size_t>(stats.st_size) > multipleSize + nOff + bytesIn64Bits) {
-		gostcipher::readAndDecrypt(
-					extBuf.get(), bytesIn64Bits, key, fileDescriptor, nOff + multipleSize);
-		for (size_t i = 0; i < extSize; ++i)
-			extBuf[i] = text[size - extSize + i];
-
-		gostcipher::encrypt(extBuf.get(), bytesIn64Bits, key);
-		ret = pwrite(fileDescriptor, extBuf.get(), bytesIn64Bits, nOff + multipleSize);
-		return ret;
-	}
-
-	for (size_t i = 0; i < extSize; ++i)
-		extBuf[i] = text[multipleSize + i];
-	for (size_t i = extSize; i < bytesIn64Bits; ++i)
-		extBuf[i] = static_cast<char>(bytesIn64Bits - extSize);
-	ecbBlockIteration(cipherMode::encryptMode, extBuf.get(), key);
-	ret = pwrite(fileDescriptor, extBuf.get(), bytesIn64Bits, nOff + multipleSize);
-	return ret;
-}
-
-char checkLastBlock(char* text) {
-	if (text == nullptr)
-		return 0;
-
-	char extra = 0;
-	for (char i = 1; i <= static_cast<char>(bytesIn64Bits); ++i) {
-		if (text[bytesIn64Bits - 1] == i) {
-			extra = i;
-			break;
-		}
-	}
-
-	bool last = (extra ? true : false);
-	if (last)
-		for (size_t i = bytesIn64Bits - extra; i < bytesIn64Bits - 1; ++i)
-			if (text[i] != extra) {
-				last = false;
-				break;
-			}
-
-	return (last ? extra : 0);
-}
-
-int gostcipher::readAndDecrypt(char* text, const size_t& size, const uint32_t* key, int fileDescriptor, off_t offset) {
-	if (text == nullptr || key == nullptr || size == 0)
-		return 0;
-
-	size_t multipleSize = size - size % bytesIn64Bits;
-	int ret = pread(fileDescriptor, text, multipleSize, offset - offset % bytesIn64Bits);
-	gostcipher::decrypt(text, multipleSize, key);
-	ret -= checkLastBlock(text + ret - (ret % bytesIn64Bits ? ret % bytesIn64Bits : bytesIn64Bits));
-	return ret;
 }

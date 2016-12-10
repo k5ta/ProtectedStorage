@@ -1,6 +1,5 @@
 #include "StorageWindow.h"
 #include "ui_StorageWindow.h"
-#include "ErrorDialog.h"
 #include <QFileDialog>
 
 
@@ -171,13 +170,12 @@ void StorageWindow::about() {
 
 
 void StorageWindow::error(const char* reason) {
-	QMessageBox mb;
-	mb.setWindowTitle("ERROR");
-	mb.setText(reason);
-	mb.setModal(true);
-	mb.exec();
+	QMessageBox::critical(this, "ERROR", reason);
+	//mb.setWindowTitle("ERROR");
+	//mb.setText(reason);
+	//mb.setModal(true);
+	//mb.exec();
 }
-#include <iostream>
 
 void StorageWindow::rootFileClicked() {
 	QFileDialog qfd;
