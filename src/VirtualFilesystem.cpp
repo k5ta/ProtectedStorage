@@ -33,7 +33,6 @@ int vfs_getattr(const char* path, struct stat* stats) {
 	vfs_fullpath(fpath, path);
 
 	int	ret = lstat(fpath, stats);
-	stats->st_size -= (bytesIn64Bits - getLastBlockSize(fpath, stats->st_size));
 	return (ret < 0 ? -errno : ret);
 }
 
@@ -350,10 +349,6 @@ int vfs_fgetattr(const char* path, struct stat* stats, struct fuse_file_info* ff
 		return vfs_getattr(path, stats);
 
 	int ret = fstat(ffinfo->fh, stats);
-	char fpath[PATH_MAX];
-	vfs_fullpath(fpath, path);
-	stats->st_size -= (bytesIn64Bits - getLastBlockSize(fpath, stats->st_size));
-
 	return (ret < 0 ? -errno : ret);
 }
 
